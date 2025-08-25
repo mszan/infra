@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bootstrap-config
+  namespace: argocd
+data:
+  cluster-name: "kind-cluster-local"
+  argocd-host: "argocd-server.local"
+  git-repo: "https://github.com/mszan/infra.git"
+  git-branch: "main"

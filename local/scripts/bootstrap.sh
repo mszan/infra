@@ -1,8 +1,16 @@
 #!/bin/bash
+# Bootstrap local Kubernetes cluster with Kind, Helm and ArgoCD.
+
+# deps
+# - kind - https://kind.sigs.k8s.io/
+# - kubectl - https://kubernetes.io/docs/tasks/tools/
+# - helm (client) - https://helm.sh/docs/intro/install/
+
 set -euo pipefail
 
-# Bootstrap local Kubernetes cluster with ArgoCD
 readonly CLUSTER_NAME="kind-cluster-local"
+
+# make sure these match with the ingress manifest
 readonly ARGOCD_HOST="argocd-server.local"
 readonly HOST_ENTRY="127.0.0.1 ${ARGOCD_HOST}"
 
@@ -10,7 +18,7 @@ log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"
 }
 
-check_hosts_entry() {
+setup_hosts_entry() {
     if grep -q "$ARGOCD_HOST" /etc/hosts; then
         log "hosts entry already exists"
         return 0
@@ -33,33 +41,13 @@ setup_cluster() {
     kind create cluster --config=local/clusters/cluster-kind.yaml
 }
 
-setup_ingress() {
-    log "installing nginx ingress controller"
-    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-
-    log "waiting for ingress controller deployment to be created"
-    kubectl wait \
-        --namespace ingress-nginx \
-        --for=condition=available \
-        --timeout=300s \
-        deployment/ingress-nginx-controller
-
-    log "waiting for ingress controller pods to be ready"
-    kubectl wait \
-        --namespace ingress-nginx \
-        --for=condition=ready \
-        --selector=app.kubernetes.io/component=controller \
-        --timeout=90s \
-        pod
-}
-
 setup_argocd() {
     log "installing argocd"
     kubectl create namespace argocd
     kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-    log "applying argocd ingress"
-    kubectl apply -f local/bootstrap/ingress-argocd-server.yaml
+    log "applying bootstrap configuration"
+    kubectl apply -f local/bootstrap/bootstrap-config.yaml
 
     log "applying root app"
     kubectl apply -f local/bootstrap/app-root.yaml
@@ -86,10 +74,10 @@ show_credentials() {
 }
 
 main() {
-    check_hosts_entry
+    setup_hosts_entry
     setup_cluster
-    setup_ingress
     setup_argocd
+
     show_credentials
     log "bootstrap complete"
 }
